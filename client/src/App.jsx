@@ -10,6 +10,7 @@ import {
 import api from './api';
 import HeroCarousel from './HeroCarousel.jsx';
 import ManageEventPro from './ManageEventPro.jsx';
+import EventPhotoPicker from './EventPhotoPicker.jsx';
 import eventifyMark from './assets/eventify-mark.svg';
 import eventifyLogo from './assets/logo.png';
 
@@ -521,6 +522,32 @@ function EventCard({ event: e, index = 0 }) {
   );
 }
 
+function EventPhotoGallery({ event, fallback }) {
+  const eventImages = [...new Set([event.image, ...(event.images || [])].filter(Boolean))];
+  const gallery = eventImages.length ? eventImages : [fallback];
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    if (gallery.length < 2) return undefined;
+    const timer = setInterval(() => setActive(index => (index + 1) % gallery.length), 4000);
+    return () => clearInterval(timer);
+  }, [gallery.length]);
+  const show = next => setActive((next + gallery.length) % gallery.length);
+
+  return (
+    <div className="event-gallery" aria-label={`${event.title} photos`}>
+      <img className="detail-image" src={gallery[active]} alt={`${event.title} photo ${active + 1}`} />
+      {gallery.length > 1 && <>
+        <span className="gallery-count">{String(active + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}</span>
+        <button className="gallery-arrow gallery-previous" type="button" aria-label="Previous event photo" onClick={() => show(active - 1)}><ArrowLeft size={18} /></button>
+        <button className="gallery-arrow gallery-next" type="button" aria-label="Next event photo" onClick={() => show(active + 1)}><ArrowRight size={18} /></button>
+        <div className="gallery-dots" aria-label="Select event photo">
+          {gallery.map((image, index) => <button key={`${index}-${image.slice(0, 24)}`} type="button" className={active === index ? 'active' : ''} aria-label={`Show event photo ${index + 1}`} aria-current={active === index} onClick={() => show(index)} />)}
+        </div>
+      </>}
+    </div>
+  );
+}
+
 function EventPage() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
@@ -558,11 +585,7 @@ function EventPage() {
       <Link to="/" className="back-link"><ArrowLeft size={16} /> All events</Link>
       <div className="detail-grid">
         <div className="detail-main">
-          <img
-            className="detail-image"
-            src={event.image || `https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=1400&q=85`}
-            alt={event.title}
-          />
+          <EventPhotoGallery key={event._id} event={event} fallback={`https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=1400&q=85`} />
           <div className="detail-meta">
             <span className="pill">{event.category}</span>
             <span>Hosted by {event.organizer?.organization || event.organizer?.name || 'Event organizer'}</span>
@@ -706,6 +729,7 @@ function Dashboard() {
   const [stats, setStats] = useState({});
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
+    images: [],
     tickets: [
       { name: 'General Admission', price: 350, quantity: 100, maxPerOrder: 5 },
       { name: 'VIP', price: 700, quantity: 30, maxPerOrder: 3 },
@@ -728,6 +752,8 @@ function Dashboard() {
     try {
       await api.post('/events', {
         ...form,
+        image: form.images?.[0] || form.image || '',
+        images: form.images || [],
         date: new Date(form.date),
         capacity: Number(form.capacity),
         tickets: form.tickets.map(t => ({ ...t, price: Number(t.price), quantity: Number(t.quantity) })),
@@ -808,6 +834,7 @@ function Dashboard() {
               Event name
               <input required value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Sunday Sessions" />
             </label>
+            <EventPhotoPicker images={form.images || []} onChange={images => setForm(current => ({ ...current, images, image: images[0] || '' }))} />
             <div className="form-two">
               <label>
                 Category

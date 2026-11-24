@@ -607,3 +607,46 @@ footer {
   .eventcon-home .discover .event-info { padding: 14px; }
   .eventcon-home .discover .event-info h3 { font-size: 15px; }
 }
+
+/* Multiple event photo upload and event detail gallery. */
+.event-photo-picker { display: grid; gap: 12px; margin: 4px 0 16px; }
+.photo-picker-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+.photo-picker-heading > div { display: grid; gap: 4px; }
+.photo-picker-heading b { color: #f4f4f7; font-size: 12px; }
+.photo-picker-heading small, .photo-picker-heading > span { color: #aeb2bc; font-size: 10px; line-height: 1.5; }
+.photo-picker-heading > span { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #28212a; color: #ff7183; }
+.event-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.event-photo-thumb, .add-event-photo { position: relative; min-width: 0; height: 92px; overflow: hidden; border: 1px solid #383b46; border-radius: 11px; background: #171a22; }
+.event-photo-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.event-photo-thumb.is-cover { border-color: #f34461; box-shadow: 0 0 0 1px rgba(243,54,89,.25); }
+.cover-photo-label, .make-cover-button { position: absolute; left: 6px; bottom: 6px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% - 36px); padding: 5px 7px; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; color: #fff; background: rgba(15,17,23,.86); backdrop-filter: blur(8px); font: 600 9px 'DM Sans',sans-serif; }
+.make-cover-button { cursor: pointer; }
+.make-cover-button:hover { border-color: #ff526f; color: #ff8294; }
+.remove-photo-button { position: absolute; top: 5px; right: 5px; z-index: 2; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; color: #fff; background: rgba(15,17,23,.84); cursor: pointer; }
+.remove-photo-button:hover { color: #fff; background: #c8324d; }
+.add-event-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-style: dashed; color: #ff6e84; cursor: pointer; }
+.add-event-photo:hover:not(:disabled) { border-color: #f34461; background: #211a23; }
+.add-event-photo b { color: #e9e9ef; font-size: 10px; }
+.add-event-photo small { color: #969ba6; font-size: 8px; }
+.add-event-photo:disabled { opacity: .7; cursor: wait; }
+.photo-file-input { display: none; }
+.photo-picker-message { color: #ff9aa9; font-size: 10px; }
+.photo-spinner { animation: photo-spin 1s linear infinite; }
+@keyframes photo-spin { to { transform: rotate(360deg); } }
+
+.event-gallery { position: relative; margin-bottom: 0; }
+.event-gallery .detail-image { display: block; width: 100%; }
+.gallery-count { position: absolute; top: 14px; right: 14px; z-index: 2; padding: 6px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; color: #fff; background: rgba(12,14,19,.72); backdrop-filter: blur(10px); font-size: 10px; font-weight: 700; letter-spacing: .5px; }
+.gallery-arrow { position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid rgba(255,255,255,.48); border-radius: 50%; color: #fff; background: rgba(12,14,19,.55); backdrop-filter: blur(8px); cursor: pointer; transform: translateY(-50%); transition: background .18s ease, border-color .18s ease, transform .18s ease; }
+.gallery-arrow:hover { border-color: #ff6178; background: #e93b58; transform: translateY(-50%) scale(1.06); }
+.gallery-previous { left: 14px; }
+.gallery-next { right: 14px; }
+.gallery-dots { position: absolute; z-index: 2; bottom: 15px; left: 50%; display: flex; gap: 7px; max-width: calc(100% - 100px); padding: 8px 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; background: rgba(12,14,19,.62); backdrop-filter: blur(8px); transform: translateX(-50%); overflow-x: auto; }
+.gallery-dots button { flex: 0 0 auto; width: 7px; height: 7px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.55); cursor: pointer; }
+.gallery-dots button.active { width: 22px; background: #ff4664; }
+@media (max-width: 620px) {
+  .event-photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .event-photo-thumb, .add-event-photo { height: 76px; }
+  .event-gallery .detail-image { height: 260px; }
+  .gallery-arrow { width: 36px; height: 36px; }
+}
