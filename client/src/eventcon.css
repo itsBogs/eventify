@@ -1,0 +1,565 @@
+/* ============================================================
+   eventcon.css — Dark Theme Override for Eventify Homepage
+   ============================================================
+   The main style.css defines the light-theme design system.
+   This file overrides specific elements inside the
+   `.eventcon-home` wrapper to produce a cinematic dark
+   navy / charcoal look with coral-red accents.
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   1. Topbar Dark Override
+   ---------------------------------------------------------- */
+.topbar {
+  background: rgba(17, 19, 25, 0.92);
+  border-color: var(--border-dark);
+  color: #fff;
+}
+
+.topbar .brand {
+  color: #fff;
+}
+
+.topbar .brand-mark {
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+}
+
+.topbar .brand-dot {
+  color: var(--primary);
+}
+
+.topbar .nav-links a {
+  color: #c8c9cf;
+}
+
+.topbar .nav-links a:hover {
+  color: #fff;
+}
+
+.topbar .sign-link {
+  color: #c8c9cf;
+}
+
+.topbar .sign-link:hover {
+  color: #fff;
+}
+
+.topbar .user-name {
+  color: #ddd;
+}
+
+.topbar .icon-button {
+  color: #ddd;
+}
+
+.topbar .avatar {
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+}
+
+.topbar .button-dark {
+  background: var(--primary);
+}
+
+.topbar .mobile-toggle {
+  color: #fff;
+}
+
+/* ----------------------------------------------------------
+   2. Homepage Body
+   ---------------------------------------------------------- */
+.eventcon-home {
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+}
+
+/* ----------------------------------------------------------
+   3. Hero Section Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home .hero {
+  width: 100%;
+  max-width: none;
+  min-height: 620px;
+  margin: 0;
+  padding: 64px max(calc((100vw - 1280px) / 2), 5.5vw);
+  display: grid;
+  grid-template-columns: minmax(320px, 0.82fr) minmax(470px, 1.18fr);
+  gap: 48px;
+  background:
+    radial-gradient(ellipse at 12% 82%, #29202a 0, transparent 42%),
+    linear-gradient(120deg, #13151b, #191b21 58%, #111319);
+  overflow: hidden;
+}
+
+.eventcon-home .hero .hero-copy {
+  padding: 0;
+  z-index: 2;
+}
+
+.eventcon-home .hero .eyebrow {
+  color: rgba(224, 79, 72, 0.85);
+}
+
+.eventcon-home .hero .pulse {
+  background: var(--primary);
+  box-shadow: 0 0 0 4px rgba(224, 79, 72, 0.25);
+}
+
+.eventcon-home .hero h1 {
+  color: #fff;
+  font-size: clamp(44px, 5vw, 68px);
+  letter-spacing: -3.5px;
+}
+
+.eventcon-home .hero p {
+  color: #b0b2bb;
+  max-width: 430px;
+  font-size: 14.5px;
+}
+
+.eventcon-home .hero .button-dark {
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 14px 22px;
+}
+
+.eventcon-home .hero .button-dark:hover {
+  background: var(--primary-hover);
+}
+
+.eventcon-home .hero .text-button {
+  color: #e8e8e4;
+}
+
+.eventcon-home .hero .text-button:hover {
+  color: var(--primary);
+}
+
+.eventcon-home .hero .social-proof {
+  color: #8e909a;
+  margin-top: 36px;
+}
+
+.eventcon-home .hero .avatar-stack span {
+  border-color: var(--bg-dark);
+}
+
+.eventcon-home .hero-orb {
+  background: rgba(224, 79, 72, 0.07);
+  left: -90px;
+  bottom: 15px;
+}
+
+/* ----------------------------------------------------------
+   4. Hero Carousel Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home .hero-carousel {
+  height: 480px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.eventcon-home .hero-carousel .carousel-top {
+  letter-spacing: 1.4px;
+}
+
+.eventcon-home .hero-carousel .carousel-live-dot {
+  background: var(--primary);
+}
+
+.eventcon-home .hero-carousel .carousel-tag {
+  background: var(--primary);
+  color: #fff;
+  border: 0;
+  border-radius: 3px;
+}
+
+.eventcon-home .hero-carousel h2 {
+  text-transform: uppercase;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.6);
+  font-weight: 800;
+  max-width: 560px;
+}
+
+.eventcon-home .hero-carousel .carousel-arrow {
+  border-radius: var(--radius-sm);
+}
+
+.eventcon-home .hero-carousel .carousel-arrow:hover {
+  background: var(--primary);
+}
+
+.eventcon-home .hero-carousel .carousel-dots .dot.selected {
+  background: var(--primary);
+}
+
+.eventcon-home .hero-carousel .carousel-ticket-cta {
+  background: #faf9f4;
+  color: #282a2f;
+  border-radius: var(--radius-sm);
+}
+
+.eventcon-home .hero-carousel .carousel-ticket-cta .cta-icon {
+  background: #fce8e6;
+  color: var(--primary);
+}
+
+.eventcon-home .hero-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.eventcon-home .hero-event-meta span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.eventcon-home .hero-event-meta span svg {
+  color: var(--primary);
+}
+
+/* ----------------------------------------------------------
+   5. Discover Section Light Override
+   ---------------------------------------------------------- */
+.eventcon-home .discover {
+  background: #f7f7f5;
+  color: var(--text);
+  max-width: none;
+  padding: 72px max(calc((100vw - 1280px) / 2), 5.5vw) 88px;
+}
+
+.eventcon-home .discover .section-head h2 {
+  color: var(--text);
+}
+
+.eventcon-home .discover .section-head p {
+  color: var(--text-secondary);
+}
+
+.eventcon-home .discover .eyebrow.muted {
+  color: var(--primary);
+}
+
+.eventcon-home .discover .category.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.eventcon-home .discover .event-card {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.eventcon-home .discover .event-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.eventcon-home .discover .event-price {
+  color: var(--primary);
+}
+
+/* ----------------------------------------------------------
+   6. How It Works Section Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home .how-it-works {
+  background: var(--surface-dark);
+  color: #fff;
+}
+
+.eventcon-home .how-it-works .step-icon {
+  background: rgba(224, 79, 72, 0.12);
+  color: var(--primary);
+}
+
+.eventcon-home .how-it-works .step-number {
+  color: var(--primary);
+}
+
+.eventcon-home .how-it-works .step p {
+  color: #a4a6ae;
+}
+
+/* ----------------------------------------------------------
+   7. Browse Categories Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home .browse-categories {
+  background: transparent;
+}
+
+.eventcon-home .browse-categories .cat-card {
+  background: var(--surface-dark);
+  border-color: var(--border-dark);
+  color: #fff;
+}
+
+.eventcon-home .browse-categories .cat-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 24px rgba(224, 79, 72, 0.12);
+}
+
+.eventcon-home .browse-categories .cat-icon {
+  background: rgba(224, 79, 72, 0.12);
+  color: var(--primary);
+}
+
+/* ----------------------------------------------------------
+   8. Host Banner Override
+   ---------------------------------------------------------- */
+.eventcon-home .host-banner {
+  margin-top: 0;
+  margin-bottom: 72px;
+  background: linear-gradient(110deg, #23191c, #351f23 66%, #1d1b20);
+  border: 1px solid #473136;
+  border-radius: var(--radius-sm);
+}
+
+.eventcon-home .host-banner .eyebrow {
+  color: rgba(255, 141, 131, 0.9);
+}
+
+.eventcon-home .host-banner .button-white {
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+}
+
+.eventcon-home .host-banner .button-white:hover {
+  background: var(--primary-hover);
+}
+
+/* ----------------------------------------------------------
+   9. Footer Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home footer,
+footer {
+  background: var(--bg-dark);
+  border-color: var(--border-dark);
+  color: #fff;
+}
+
+footer .brand {
+  color: #fff;
+}
+
+footer .brand-mark {
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+}
+
+footer .brand-dot {
+  color: var(--primary);
+}
+
+footer span {
+  color: #a4a6ad;
+}
+
+/* ----------------------------------------------------------
+   10. Stats Row Dark Override
+   ---------------------------------------------------------- */
+.eventcon-home .stats-row,
+.eventcon-home ~ .stats-row {
+  background: var(--surface-dark);
+  border-color: var(--border-dark);
+}
+
+.eventcon-home .stat-pill b,
+.eventcon-home ~ .stats-row .stat-pill b {
+  color: var(--text-on-dark);
+}
+
+.eventcon-home .stat-pill span,
+.eventcon-home ~ .stats-row .stat-pill span {
+  color: #8e909a;
+}
+
+/* ----------------------------------------------------------
+   11. Footer Columns Dark Override
+   ---------------------------------------------------------- */
+footer .footer-grid {
+  color: #fff;
+}
+
+footer .footer-brand p {
+  color: #8e909a;
+}
+
+footer .footer-col h4 {
+  color: #d0d1d6;
+}
+
+footer .footer-col a {
+  color: #8e909a;
+}
+
+footer .footer-col a:hover {
+  color: var(--primary);
+}
+
+footer .footer-social a {
+  background: rgba(255, 255, 255, 0.08);
+  color: #8e909a;
+}
+
+footer .footer-social a:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+footer .footer-bottom {
+  border-color: var(--border-dark);
+  color: #6e7078;
+}
+
+/* ----------------------------------------------------------
+   12. User Dropdown Dark Override
+   ---------------------------------------------------------- */
+.topbar .user-trigger {
+  color: #ddd;
+}
+
+.topbar .user-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.topbar .user-dropdown {
+  background: var(--surface-dark);
+  border-color: var(--border-dark);
+}
+
+.topbar .dropdown-header b {
+  color: #fff;
+}
+
+.topbar .dropdown-header small {
+  color: #8e909a;
+}
+
+.topbar .dropdown-divider {
+  background: var(--border-dark);
+}
+
+.topbar .dropdown-item {
+  color: #b0b2ba;
+}
+
+.topbar .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.topbar .dropdown-logout {
+  color: #e04f48;
+}
+
+.topbar .dropdown-logout:hover {
+  background: rgba(224, 79, 72, 0.1);
+}
+
+/* ----------------------------------------------------------
+   13. Host Banner Features Override
+   ---------------------------------------------------------- */
+.eventcon-home .host-features span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.eventcon-home .host-features svg {
+  color: var(--primary);
+}
+
+/* ----------------------------------------------------------
+   14. Mobile Nav Dark Override
+   ---------------------------------------------------------- */
+@media (max-width: 620px) {
+  .topbar .nav {
+    background: rgba(17, 19, 25, 0.98);
+    border-top: 1px solid var(--border-dark);
+  }
+
+  .topbar .nav a {
+    color: #c8c9cf;
+  }
+
+  .topbar .nav a:hover {
+    color: #fff;
+  }
+}
+
+/* ----------------------------------------------------------
+   15. Responsive Overrides for .eventcon-home
+   ---------------------------------------------------------- */
+
+/* ---- Breakpoint: 1100px ---- */
+@media (max-width: 1100px) {
+  .eventcon-home .hero {
+    grid-template-columns: minmax(280px, 0.9fr) minmax(380px, 1.1fr);
+    gap: 32px;
+  }
+
+  .eventcon-home .hero-carousel {
+    height: 440px;
+  }
+
+  .eventcon-home .hero h1 {
+    font-size: 52px;
+  }
+}
+
+/* ---- Breakpoint: 850px ---- */
+@media (max-width: 850px) {
+  .eventcon-home .hero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .eventcon-home .hero-carousel {
+    height: 420px;
+  }
+
+  .eventcon-home .discover {
+    padding: 56px 24px 72px;
+  }
+
+  .eventcon-home .host-banner {
+    margin-bottom: 48px;
+  }
+}
+
+/* ---- Breakpoint: 620px ---- */
+@media (max-width: 620px) {
+  .eventcon-home .hero {
+    padding: 40px 18px;
+  }
+
+  .eventcon-home .hero h1 {
+    font-size: 44px;
+  }
+
+  .eventcon-home .hero-carousel {
+    height: 340px;
+  }
+
+  .eventcon-home .hero-carousel .carousel-floating {
+    display: none;
+  }
+
+  .eventcon-home .discover {
+    padding: 40px 14px 56px;
+  }
+
+  .eventcon-home .discover .section-head h2 {
+    font-size: 26px;
+  }
+
+  .eventcon-home .discover .event-cover {
+    height: 160px;
+  }
+}

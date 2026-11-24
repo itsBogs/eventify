@@ -1,0 +1,2 @@
+export function notFound(req,res){res.status(404).json({success:false,message:'Route not found'})}
+export function errors(err,req,res,next){console.error(err);const status=err.status|| (err.name==='ValidationError'?422:err.code===11000?409:500);res.status(status).json({success:false,message:process.env.NODE_ENV==='production'&&status===500?'Something went wrong':err.message||'Server error'})}
