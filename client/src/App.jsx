@@ -165,12 +165,9 @@ function Shell() {
               )}
             </div>
           ) : (
-            <>
-              <Link className="sign-link" to="/login">Log in</Link>
-              <Link className="button button-dark button-sm" to="/register">
-                Buy ticket <ArrowRight size={15} />
-              </Link>
-            </>
+            <Link className="button button-dark button-sm" to="/register">
+              Buy ticket <ArrowRight size={15} />
+            </Link>
           )}
           <button className="mobile-toggle" onClick={() => setMobile(!mobile)} aria-label={mobile ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobile} aria-controls="primary-navigation">
             {mobile ? <X /> : <Menu />}
