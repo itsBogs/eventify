@@ -1,2 +1,2 @@
-import 'dotenv/config';import app from './app.js';import connectDB from './config/db.js';
-const port=process.env.PORT||5000;try{await connectDB();app.listen(port,()=>console.log(`Eventify API listening on ${port}`))}catch(e){console.error('Unable to connect to MongoDB:',e.message);process.exit(1)}
+import 'dotenv/config';import app from './app.js';import connectDB from './config/db.js';import {expireOverdueOrders} from './services/orderExpiry.js';
+const port=process.env.PORT||5000;try{await connectDB();await expireOverdueOrders().catch(e=>console.error('Order expiry check failed:',e.message));const expiryTimer=setInterval(()=>expireOverdueOrders().catch(e=>console.error('Order expiry check failed:',e.message)),15*60*1000);expiryTimer.unref();app.listen(port,()=>console.log(`Eventify API listening on ${port}`))}catch(e){console.error('Unable to connect to MongoDB:',e.message);process.exit(1)}
