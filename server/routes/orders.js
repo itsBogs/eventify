@@ -96,7 +96,7 @@ r.post('/', auth, roles('attendee'), body('eventId').isMongoId(), body('ticketTy
 
 r.get('/my-orders', auth, roles('attendee'), async (req, res) => {
   await expireOverdueOrders();
-  const orders = await Order.find({ user: req.user.id }).populate('event', 'title date venue image paymentInstructions moderation status cancellationReason').sort({ createdAt: -1 });
+  const orders = await Order.find({ user: req.user.id }).populate('event', 'title date venue image paymentInstructions moderation status cancellationReason refundContact').sort({ createdAt: -1 });
   send(res, orders);
 });
 
@@ -120,7 +120,7 @@ r.get('/host', auth, roles('organizer'), async (req, res) => {
 
 r.get('/:id', auth, async (req, res) => {
   await expireOverdueOrders();
-  const order = await Order.findById(req.params.id).populate('event', 'title date venue image paymentInstructions organizer moderation').populate('user', 'name email').populate('statusHistory.by', 'name');
+  const order = await Order.findById(req.params.id).populate('event', 'title date venue image paymentInstructions organizer moderation status cancellationReason refundContact').populate('user', 'name email').populate('statusHistory.by', 'name');
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   if (String(order.user?._id || order.user) !== String(req.user.id) && !(req.user.role === 'organizer' && await hostOwnsOrder(order, req.user))) return res.status(403).json({ success: false, message: 'Not your order' });
   send(res, order);

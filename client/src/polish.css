@@ -1058,3 +1058,19 @@ footer {
 .order-detail-modal .order-timeline small { font-size: 9px; line-height: 1.35; }
 .order-detail-main>.button { min-height: 38px; }
 @media (max-width: 600px) { .order-detail-modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 20px 16px; overflow-y: auto; } .order-detail-layout { grid-template-columns: minmax(0,1fr); } .order-detail-modal .order-timeline { grid-row: auto; } .order-receipt-thumb { height: 82px; max-height: 82px; } }
+.admin-notification-list { display: grid; gap: 8px; margin: 0 0 14px; }
+.admin-notice-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 12px; border: 1px solid rgba(255,81,105,.25); border-radius: 10px; background: rgba(177,43,62,.08); }
+.admin-notice-summary.restored { border-color: rgba(66,210,132,.22); background: rgba(35,146,85,.08); }
+.admin-notice-summary>div:first-child { display: grid; min-width: 0; gap: 3px; }
+.admin-notice-summary b { display: flex; align-items: center; gap: 7px; }
+.admin-notice-summary>div>span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-notice-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 20px; background: rgba(255,255,255,.09); color: #e7e7eb!important; font-size: 9px!important; }
+.admin-notice-controls { display: flex; flex: none; align-items: center; gap: 12px; }
+.admin-notice-controls button { padding: 4px 0; border: 0; background: none; color: #dddfe6; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.admin-notice-history { display: grid; gap: 6px; max-height: 250px; overflow-y: auto; }
+.admin-notice-history article { padding: 8px 11px; }
+@media (max-width: 600px) { .admin-notice-summary { align-items: flex-start; flex-direction: column; } .admin-notice-controls { justify-content: space-between; width: 100%; } .admin-notice-summary>div>span { white-space: normal; } }
+.admin-removal-banner { grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px; }
+.admin-removal-banner>div { display: grid; gap: 5px; min-width: 0; }
+.admin-removal-banner .button { flex: none; min-height: 36px; padding: 0 12px; font-size: 10px; }
+@media (max-width: 640px) { .admin-removal-banner { grid-template-columns: minmax(0,1fr); } .admin-removal-banner .button { justify-self: start; } }

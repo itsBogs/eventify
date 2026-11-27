@@ -249,11 +249,14 @@ r.delete('/:id', auth, roles('organizer'), asyncRoute(async (req, res) => {
   send(res, null, 'Event and inactive order history deleted.');
 }));
 
-r.patch('/:id/cancel', auth, roles('organizer'), body('reason').isString().trim().isLength({ min: 5, max: 500 }).withMessage('Enter a cancellation reason of at least 5 characters.'), check, asyncRoute(async (req, res) => {
+r.patch('/:id/cancel', auth, roles('organizer'), body('reason').isString().trim().isLength({ min: 5, max: 500 }).withMessage('Enter a cancellation reason of at least 5 characters.'), body('refundContact').isString().trim().isLength({ min: 5, max: 160 }).withMessage('Enter an email address, phone number, or other refund contact (5 to 160 characters).'), check, asyncRoute(async (req, res) => {
   const event = await ownedEvent(req.params.id, req.user.id);
   if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
-  if (event.moderation?.status === 'removed') return res.status(423).json({ success: false, message: 'This event was removed by an administrator and cannot be changed.' });
-  if (event.status !== 'Cancelled' || !event.cancellationReason) { event.status = 'Cancelled'; event.cancellationReason = req.body.reason.trim(); await event.save(); }
+  // Admin-removed events stay hidden and read-only, but organizers must still
+  // be able to cancel them so existing orders can be cancelled/refund-flagged.
+  if (event.status !== 'Cancelled' || !event.cancellationReason) { event.status = 'Cancelled'; event.cancellationReason = req.body.reason.trim(); }
+  event.refundContact = req.body.refundContact.trim();
+  await event.save();
   const unpaid = await Order.find({ event: event.id, status: { $in: CANCELLABLE_UNPAID_STATUSES }, reservationReleased: { $ne: true } }).select('_id items').lean();
   let cancelledOrders = 0, releasedTickets = 0;
   for (const candidate of unpaid) {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Routes, Route, Link, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ArrowRight, ArrowUpRight, CalendarDays, MapPin, Search, Ticket, UserRound,
@@ -94,6 +94,7 @@ function Shell() {
   const [mobile, setMobile] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdown, setDropdown] = useState(false);
+  const dropdownRef = useRef(null);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -101,6 +102,22 @@ function Shell() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!dropdown) return;
+    const closeOnOutside = event => {
+      if (!dropdownRef.current?.contains(event.target)) setDropdown(false);
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setDropdown(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [dropdown]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -140,8 +157,8 @@ function Shell() {
 
         <div className="header-actions">
           {user ? (
-            <div className="user-dropdown-wrap" onMouseLeave={() => setDropdown(false)}>
-              <button className="user-trigger" onClick={() => setDropdown(!dropdown)}>
+            <div className="user-dropdown-wrap" ref={dropdownRef}>
+              <button className="user-trigger" type="button" aria-expanded={dropdown} aria-haspopup="true" onClick={() => setDropdown(value => !value)}>
                 <div className="avatar">{user.name?.[0]}</div>
                 <span className="user-name">{user.name?.split(' ')[0]}</span>
                 <ChevronDown size={14} />
@@ -798,6 +815,7 @@ function Dashboard() {
   const [loadingMoreEvents, setLoadingMoreEvents] = useState(false);
   const [stats, setStats] = useState({});
   const [adminNotices, setAdminNotices] = useState([]);
+  const [noticesExpanded, setNoticesExpanded] = useState(false);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     images: [],
@@ -886,7 +904,7 @@ function Dashboard() {
         <Stat icon={<Clock3 />} label="Coming up" value={stats.upcoming || 0} note="Events on the calendar" />
       </div>
 
-      {adminNotices.length > 0 && <div className="admin-notification-list" aria-label="Event moderation notifications">{adminNotices.map(item => <article key={item._id} className={item.type === 'event_removed' ? 'removed' : 'restored'}><div><b>{item.type === 'event_removed' ? 'Event removed by admin' : 'Event restored by admin'} · {item.eventTitle}</b><span>{item.reason || (item.type === 'event_removed' ? 'This event is hidden from buyers and is read-only.' : 'This event is active again.')}</span></div>{item.event && <Link to={`/manage/${item.event}`}>View event <ArrowRight size={14}/></Link>}</article>)}</div>}
+      {adminNotices.length > 0 && <div className={`admin-notification-list${noticesExpanded ? ' expanded' : ''}`} aria-label="Event moderation notifications"><div className={`admin-notice-summary ${adminNotices[0].type === 'event_removed' ? 'removed' : 'restored'}`}><div><b>Admin updates <span className="admin-notice-count">{adminNotices.length}</span></b><span>{adminNotices[0].type === 'event_removed' ? 'Event removed' : 'Event restored'} - {adminNotices[0].eventTitle}: {adminNotices[0].reason || (adminNotices[0].type === 'event_removed' ? 'This event is hidden from buyers.' : 'This event is active again.')}</span></div><div className="admin-notice-controls">{adminNotices[0].event && <Link to={`/manage/${adminNotices[0].event}`}>View latest <ArrowRight size={13}/></Link>}<button type="button" onClick={() => setNoticesExpanded(value => !value)} aria-expanded={noticesExpanded}>{noticesExpanded ? 'Hide history' : 'Show history'}</button></div></div>{noticesExpanded && <div className="admin-notice-history">{adminNotices.map(item => <article key={item._id} className={item.type === 'event_removed' ? 'removed' : 'restored'}><div><b>{item.type === 'event_removed' ? 'Event removed by admin' : 'Event restored by admin'} · {item.eventTitle}</b><span>{item.reason || (item.type === 'event_removed' ? 'This event is hidden from buyers and is read-only.' : 'This event is active again.')}</span></div>{item.event && <Link to={`/manage/${item.event}`}>View event <ArrowRight size={14}/></Link>}</article>)}</div>}</div>}
 
       <div className="dashboard-section-title">
         <div>
@@ -1098,7 +1116,7 @@ function MyOrders() {
   const [orders,setOrders]=useState([]),[selected,setSelected]=useState(null);
   useEffect(()=>{if(!user){nav('/login');return}let active=true;const refresh=(initial=false)=>api.get('/orders/my-orders').then(x=>{if(active){setOrders(x.data);setSelected(current=>current?x.data.find(order=>order._id===current._id)||current:null)}}).catch(e=>{if(active&&initial)notify(err(e))});refresh(true);const timer=setInterval(()=>{if(document.visibilityState==='visible')refresh()},10000);return()=>{active=false;clearInterval(timer)}},[user]);
   return <section className="dashboard section-wrap"><div className="eyebrow muted">YOUR EVENT TRAIL</div><h1>My orders</h1><p className="page-subtitle">Payment status and tickets for your event orders.</p>{orders.length?<div className="manage-list">{orders.map(o=><button type="button" className="manage-row order-row" key={o._id} onClick={()=>setSelected(o)}><img src={o.event?.image||`https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=160&q=70`} alt=""/><div className="manage-event"><b>{o.event?.title||'Event'}</b><span><CalendarDays size={14}/>{date(o.event?.date)} <i> | </i>{o.items?.reduce((n,x)=>n+x.quantity,0)} ticket(s)</span>{o.event?.moderation?.status==='removed'&&<small className="removed-event-reason">This event was removed by the administrator. {o.event.moderation.reason}</small>}</div><span className={`order-status status-${o.status.toLowerCase().replaceAll(' ','-')}`}>{o.status==='Pending'?'Pending Payment':o.status}</span><b>{money(o.total)}</b><ArrowRight size={16}/></button>)}</div>:<div className="empty-state"><span className="empty-icon"><Ticket/></span><h3>Your next good plan is out there</h3><p>Find an event that feels like you.</p><Link className="button button-dark" to="/">Explore events <ArrowRight size={15}/></Link></div>}
-    {selected&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><section className="create-modal pro-modal order-detail-modal"><button className="modal-close" onClick={()=>setSelected(null)} aria-label="Close order details"><X/></button><header className="order-detail-header"><span className="eyebrow muted">ORDER DETAILS</span><h2>{selected.event?.title||'Event order'}</h2><span className={`order-status status-${selected.status.toLowerCase().replaceAll(' ','-')}`}>{selected.status==='Pending'?'Pending Payment':selected.status}</span>{selected.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{selected.event.cancellationReason||'The organizer cancelled this event.'}</span></div>}{selected.status==='Refund Required'&&<div className="event-cancelled-notice"><b>Refund follow-up needed</b><span>The event was cancelled after your payment. Contact the organizer about your refund.</span></div>}{selected.event?.moderation?.status==='removed'&&<div className="client-event-removed"><b>This event was removed by the administrator.</b><span>{selected.event.moderation.reason||'Contact Eventify support for information about your order.'}</span></div>}</header><div className="order-detail-layout"><div className="order-detail-main"><div className="order-detail-summary">{selected.items?.map((item,i)=><p key={i}>{item.name} x {item.quantity} <b>{money(item.unitPrice*item.quantity)}</b></p>)}<p>Service fee <b>{money(selected.fees)}</b></p><p className="order-total">Total <b>{money(selected.total)}</b></p></div>{selected.payment?.referenceNumber&&<p className="order-reference"><b>Reference:</b> {selected.payment.referenceNumber}</p>}{selected.payment?.receiptUrl&&<a className="order-receipt-link" href={selected.payment.receiptUrl} target="_blank" rel="noreferrer"><img className="order-receipt-thumb" src={selected.payment.receiptUrl} alt="Submitted payment receipt"/></a>}{selected.payment?.rejectionReason&&<div className="rejection-note"><b>Host feedback</b><p>{selected.payment.rejectionReason}</p></div>}{['Pending Payment','Rejected','Pending'].includes(selected.status)&&<Link className="button button-dark" to={`/checkout/${selected._id}`} onClick={()=>setSelected(null)}>{selected.status==='Rejected'?'Re-upload receipt':'Upload receipt'} <ArrowRight size={16}/></Link>}{selected.status==='Pending Verification'&&<p className="payment-review-note">Your payment is under review. The host will confirm it soon.</p>}{selected.status==='Paid'&&<Link className="button button-dark" to="/tickets" onClick={()=>setSelected(null)}>View issued tickets <Ticket size={16}/></Link>}</div><div className="order-timeline"><h3>Status history</h3>{selected.statusHistory?.map((h,i)=><div key={i}><span className={`timeline-dot status-${h.status.toLowerCase().replaceAll(' ','-')}`}/><span><b>{h.status}</b><small>{new Date(h.at).toLocaleString('en-PH')}{h.note?` - ${h.note}`:''}</small></span></div>)}</div></div></section></div>}
+    {selected&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><section className="create-modal pro-modal order-detail-modal"><button className="modal-close" onClick={()=>setSelected(null)} aria-label="Close order details"><X/></button><header className="order-detail-header"><span className="eyebrow muted">ORDER DETAILS</span><h2>{selected.event?.title||'Event order'}</h2><span className={`order-status status-${selected.status.toLowerCase().replaceAll(' ','-')}`}>{selected.status==='Pending'?'Pending Payment':selected.status}</span>{selected.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{selected.event.cancellationReason||'The organizer cancelled this event.'}</span>{selected.event.refundContact&&<span><b>Refund contact:</b> {selected.event.refundContact}</span>}</div>}{selected.status==='Refund Required'&&<div className="event-cancelled-notice"><b>Refund follow-up needed</b><span>The event was cancelled after your payment. Contact the organizer about your refund.</span>{selected.event?.refundContact&&<span><b>Refund contact:</b> {selected.event.refundContact}</span>}</div>}{selected.event?.moderation?.status==='removed'&&<div className="client-event-removed"><b>This event was removed by the administrator.</b><span>{selected.event.moderation.reason||'Contact Eventify support for information about your order.'}</span></div>}</header><div className="order-detail-layout"><div className="order-detail-main"><div className="order-detail-summary">{selected.items?.map((item,i)=><p key={i}>{item.name} x {item.quantity} <b>{money(item.unitPrice*item.quantity)}</b></p>)}<p>Service fee <b>{money(selected.fees)}</b></p><p className="order-total">Total <b>{money(selected.total)}</b></p></div>{selected.payment?.referenceNumber&&<p className="order-reference"><b>Reference:</b> {selected.payment.referenceNumber}</p>}{selected.payment?.receiptUrl&&<a className="order-receipt-link" href={selected.payment.receiptUrl} target="_blank" rel="noreferrer"><img className="order-receipt-thumb" src={selected.payment.receiptUrl} alt="Submitted payment receipt"/></a>}{selected.payment?.rejectionReason&&<div className="rejection-note"><b>Host feedback</b><p>{selected.payment.rejectionReason}</p></div>}{['Pending Payment','Rejected','Pending'].includes(selected.status)&&<Link className="button button-dark" to={`/checkout/${selected._id}`} onClick={()=>setSelected(null)}>{selected.status==='Rejected'?'Re-upload receipt':'Upload receipt'} <ArrowRight size={16}/></Link>}{selected.status==='Pending Verification'&&<p className="payment-review-note">Your payment is under review. The host will confirm it soon.</p>}{selected.status==='Paid'&&<Link className="button button-dark" to="/tickets" onClick={()=>setSelected(null)}>View issued tickets <Ticket size={16}/></Link>}</div><div className="order-timeline"><h3>Status history</h3>{selected.statusHistory?.map((h,i)=><div key={i}><span className={`timeline-dot status-${h.status.toLowerCase().replaceAll(' ','-')}`}/><span><b>{h.status}</b><small>{new Date(h.at).toLocaleString('en-PH')}{h.note?` - ${h.note}`:''}</small></span></div>)}</div></div></section></div>}
   </section>;
 }
 
@@ -1146,7 +1164,7 @@ function MyTickets() {
                 <p><CalendarDays size={14} />{date(t.event?.date)}</p>
                 <p><MapPin size={14} />{t.event?.venue}</p>
                 {t.status==='Event Removed'&&<div className="client-event-removed"><b>This event was removed by the administrator.</b><span>{t.event?.moderation?.reason||'Contact Eventify support for information about your order.'}</span></div>}
-                {t.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{t.event.cancellationReason||'The organizer cancelled this event.'}{t.order?.status==='Refund Required'?' Contact the organizer about your refund.':''}</span></div>}
+                {t.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{t.event.cancellationReason||'The organizer cancelled this event.'}{t.order?.status==='Refund Required'?' Contact the organizer about your refund.':''}</span>{t.event.refundContact&&<span><b>Refund contact:</b> {t.event.refundContact}</span>}</div>}
                 <div className="ticket-code">{t.code}</div>
                 <button className="button button-light" onClick={() => show(t)} disabled={t.status!=='Valid'}>
                   {t.status==='Checked In'?<Check size={16}/>:<QrCode size={16} />} {t.status==='Event Removed'?'Ticket disabled':t.status==='Checked In'?'Already checked in':t.status==='Cancelled'?'Ticket cancelled':'View QR ticket'}
