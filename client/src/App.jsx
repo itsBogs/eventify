@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Routes, Route, Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ArrowRight, ArrowUpRight, CalendarDays, MapPin, Search, Ticket, UserRound,
   Plus, LayoutDashboard, LogOut, Menu, X, Users, ChartNoAxesCombined, Check,
@@ -15,6 +15,7 @@ import eventifyMark from './assets/eventify-mark.svg';
 import eventifyLogo from './assets/logo.png';
 import { POSTER_THEMES, getPosterTheme, posterGallery } from './posterThemes.js';
 import PaymentInstructionsEditor from './PaymentInstructionsEditor.jsx';
+import AdminDashboard from './AdminDashboard.jsx';
 
 const C = createContext(null);
 const useAuth = () => useContext(C);
@@ -67,6 +68,7 @@ function App() {
           <Route path="/checkout/:id" element={<CheckoutPage />} />
           <Route path="/tickets" element={<MyTickets />} />
           <Route path="/manage/:id" element={<ManageEventPro />} />
+          <Route path="/admin" element={<AdminDashboard user={user} notify={notify} />} />
         </Route>
       </Routes>
       {toast && (
@@ -88,6 +90,7 @@ function App() {
 
 function Shell() {
   const { user, setUser } = useAuth();
+  const location = useLocation();
   const [mobile, setMobile] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdown, setDropdown] = useState(false);
@@ -98,6 +101,15 @@ function Shell() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const sectionId = decodeURIComponent(location.hash.slice(1));
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname, location.hash]);
 
   async function logout() {
     await api.post('/auth/logout');
@@ -114,15 +126,14 @@ function Shell() {
         </Link>
 
         <nav id="primary-navigation" className={mobile ? 'nav open' : 'nav'} aria-label="Main navigation">
-          <a href="#discover">Discover</a>
-          <a href="#browse-categories">Categories</a>
-          <a href="#how-it-works">How it Works</a>
-          <a href="#organizers">For Organizers</a>
+          <Link to="/#discover" onClick={() => setMobile(false)}>Discover</Link>
+          <Link to="/#browse-categories" onClick={() => setMobile(false)}>Categories</Link>
           {user?.role === 'organizer' && <Link to="/dashboard">Organizer dashboard</Link>}
+          {user?.role === 'admin' && <Link to="/admin" className={location.pathname.startsWith('/admin') ? 'active' : ''}>Admin</Link>}
           {user?.role === 'attendee' && (
             <>
-              <Link to="/orders">My orders</Link>
-              <Link to="/tickets">My tickets</Link>
+              <Link to="/orders" className={`client-nav-link${location.pathname === '/orders' ? ' active' : ''}`}>My orders</Link>
+              <Link to="/tickets" className={`client-nav-link${location.pathname === '/tickets' ? ' active' : ''}`}>My tickets</Link>
             </>
           )}
         </nav>
@@ -160,6 +171,7 @@ function Shell() {
                       <LayoutDashboard size={15} /> Dashboard
                     </Link>
                   )}
+                  {user.role === 'admin' && <Link to="/admin" className="dropdown-item" onClick={() => setDropdown(false)}><ShieldCheck size={15} /> Admin dashboard</Link>}
                   <div className="dropdown-divider" />
                   <button className="dropdown-item dropdown-logout" onClick={() => { logout(); setDropdown(false); }}>
                     <LogOut size={15} /> Sign Out
@@ -198,14 +210,14 @@ function Shell() {
           </div>
           <div className="footer-col">
             <h4>Explore</h4>
-            <a href="#discover">Browse Events</a>
-            <a href="#browse-categories">Categories</a>
+            <Link to="/#discover">Browse Events</Link>
+            <Link to="/#browse-categories">Categories</Link>
             <Link to="/register">Create Account</Link>
           </div>
           <div className="footer-col">
             <h4>Organizers</h4>
             <Link to="/register">Start Hosting</Link>
-            <a href="#how-it-works">How It Works</a>
+            <Link to="/#how-it-works">How It Works</Link>
             <Link to="/login">Organizer Login</Link>
           </div>
           <div className="footer-col">
@@ -236,31 +248,55 @@ function RoutesOutlet() {
 import { Outlet as OutletCompat } from 'react-router-dom';
 
 function Home() {
+  const { notify } = useAuth();
   const [events, setEvents] = useState([]);
+  const [eventMeta, setEventMeta] = useState({ total: 0, page: 1, totalPages: 0, hasNext: false });
   const [q, setQ] = useState('');
   const [category, setCategory] = useState('All events');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sort, setSort] = useState('date');
+  const [upcoming, setUpcoming] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [quickEvent, setQuickEvent] = useState(null);
   const [quickLoading, setQuickLoading] = useState(false);
   const [favorites, setFavorites] = useState(() => { try { return JSON.parse(localStorage.getItem('eventify:favorites') || '[]'); } catch { return []; } });
 
   useEffect(() => {
+    setLoading(true);
     let t = setTimeout(
       () =>
         api.get('/events', {
           params: {
             search: q || undefined,
             category: category === 'All events' ? undefined : category,
+            dateFrom: dateFrom || undefined, dateTo: dateTo || undefined,
+            minPrice: minPrice || undefined, maxPrice: maxPrice || undefined,
+            sort, upcoming: upcoming ? 'true' : undefined, page: 1, limit: 12,
           },
         })
-          .then(x => setEvents(x.data))
-          .catch(() => setEvents([]))
+          .then(x => { setEvents(x.data); setEventMeta(x.meta || { total: x.data.length, page: 1, totalPages: 1, hasNext: false }); })
+          .catch(() => { setEvents([]); setEventMeta({ total: 0, page: 1, totalPages: 0, hasNext: false }); })
           .finally(() => setLoading(false)),
       180
     );
     return () => clearTimeout(t);
-  }, [q, category]);
+  }, [q, category, dateFrom, dateTo, minPrice, maxPrice, sort, upcoming]);
+
+  async function loadMoreEvents() {
+    if (!eventMeta.hasNext || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await api.get('/events', { params: { search: q || undefined, category: category === 'All events' ? undefined : category, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, minPrice: minPrice || undefined, maxPrice: maxPrice || undefined, sort, upcoming: upcoming ? 'true' : undefined, page: eventMeta.page + 1, limit: 12 } });
+      setEvents(current => [...current, ...result.data]);
+      setEventMeta(result.meta || eventMeta);
+    } catch (error) { notify(err(error)); }
+    finally { setLoadingMore(false); }
+  }
 
   useEffect(() => {
     const id = searchParams.get('event');
@@ -367,11 +403,20 @@ function Home() {
           ))}
         </div>
 
+        <div className="discover-filter-controls">
+          <label>Date from<input aria-label="Filter events from date" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></label>
+          <label>Date to<input aria-label="Filter events through date" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} /></label>
+          <label>Min price<input aria-label="Minimum ticket price" type="number" min="0" value={minPrice} onChange={e => setMinPrice(e.target.value)} placeholder="₱0" /></label>
+          <label>Max price<input aria-label="Maximum ticket price" type="number" min="0" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="Any" /></label>
+          <label>Sort<select aria-label="Sort events" value={sort} onChange={e => setSort(e.target.value)}><option value="date">Soonest</option><option value="date-desc">Latest date</option><option value="newest">Recently added</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option></select></label>
+          <label className="upcoming-filter"><input type="checkbox" checked={upcoming} onChange={e => setUpcoming(e.target.checked)} /> Upcoming only</label>
+        </div>
+
         <div className="results-label">
           <span>
-            {loading ? 'Finding events' : `${events.length} ${events.length === 1 ? 'event' : 'events'} to get into`}
+            {loading ? 'Finding events' : `${eventMeta.total} ${eventMeta.total === 1 ? 'event' : 'events'} to get into`}
           </span>
-          <span className="sort-label">Sorted by event date</span>
+          <span className="sort-label">Page {eventMeta.page} of {Math.max(1, eventMeta.totalPages)}</span>
         </div>
 
         {loading ? (
@@ -398,11 +443,12 @@ function Home() {
             <span className="empty-icon"><CalendarDays /></span>
             <h3>No plans just yet</h3>
             <p>Try another search or category. Something good will turn up.</p>
-            <button className="button button-light" onClick={() => { setQ(''); setCategory('All events'); }}>
+            <button className="button button-light" onClick={() => { setQ(''); setCategory('All events'); setDateFrom(''); setDateTo(''); setMinPrice(''); setMaxPrice(''); setSort('date'); setUpcoming(false); }}>
               Clear filters
             </button>
           </div>
         )}
+        {!loading && eventMeta.hasNext && <div className="load-more-events"><button className="button button-light" onClick={loadMoreEvents} disabled={loadingMore}>{loadingMore ? 'Loading events…' : 'Load more events'}</button></div>}
       </section>
 
       {(quickEvent || quickLoading) && <EventQuickView event={quickEvent} loading={quickLoading} close={() => setSearchParams({}, { replace: true })} favorite={quickEvent && favorites.includes(quickEvent._id)} onFavorite={toggleFavorite} />}
@@ -572,6 +618,7 @@ function EventPhotoGallery({ event, fallback }) {
 function EventPage() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
+  const [unavailable, setUnavailable] = useState(false);
   const [qty, setQty] = useState({});
   const [busy, setBusy] = useState(false);
   const { user, notify } = useAuth();
@@ -580,9 +627,10 @@ function EventPage() {
   useEffect(() => {
     api.get(`/events/${id}`)
       .then(x => setEvent(x.data))
-      .catch(e => notify(err(e)));
+      .catch(e => { if (e.status === 404 || /no longer available|event not found/i.test(err(e))) setUnavailable(true); else notify(err(e)); });
   }, [id]);
 
+  if (!event && unavailable) return <section className="dashboard section-wrap"><div className="empty-state"><span className="empty-icon"><ShieldCheck/></span><h2>This event is no longer available</h2><p>It may have been removed or is no longer published.</p><Link className="button button-dark" to="/">Browse events <ArrowRight size={15}/></Link></div></section>;
   if (!event) return <div className="loading">Loading event...</div>;
 
   async function buy(ticket) {
@@ -746,31 +794,53 @@ function AuthPage({ register = false }) {
 function Dashboard() {
   const { user, notify } = useAuth();
   const [events, setEvents] = useState([]);
+  const [eventsMeta, setEventsMeta] = useState({ total: 0, page: 1, totalPages: 0, hasNext: false });
+  const [loadingMoreEvents, setLoadingMoreEvents] = useState(false);
   const [stats, setStats] = useState({});
+  const [adminNotices, setAdminNotices] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     images: [],
     gallery: [], theme: '', discount: { label: '', percent: '', endsAt: '' },
     paymentInstructions: { methods: [], note: '' },
     tickets: [
-      { name: 'General Admission', price: 350, quantity: 100, maxPerOrder: 5 },
+      { name: 'Regular', price: 350, quantity: 100, maxPerOrder: 5 },
       { name: 'VIP', price: 700, quantity: 30, maxPerOrder: 3 },
     ],
+    vipEnabled: true,
     category: 'Music',
     status: 'Draft',
     capacity: 130,
   });
   const nav = useNavigate();
+  const enabledTickets = form.tickets.filter(ticket => ticket.name !== 'VIP' || form.vipEnabled);
+  const ticketQuantity = enabledTickets.reduce((sum, ticket) => sum + Number(ticket.quantity || 0), 0);
 
   useEffect(() => {
     if (!user) { nav('/login'); return; }
     if (user.role !== 'organizer') { nav('/'); return; }
-    api.get('/events/mine').then(x => setEvents(x.data));
+    api.get('/events/mine', { params: { page: 1, limit: 10 } }).then(x => { setEvents(x.data); setEventsMeta(x.meta || { total: x.data.length, page: 1, totalPages: 1, hasNext: false }); });
     api.get('/organizer/dashboard').then(x => setStats(x.data)).catch(() => {});
+    api.get('/notifications/mine').then(x => setAdminNotices(x.data)).catch(() => {});
   }, [user]);
+
+  async function loadMoreOrganizerEvents() {
+    if (!eventsMeta.hasNext || loadingMoreEvents) return;
+    setLoadingMoreEvents(true);
+    try {
+      const result = await api.get('/events/mine', { params: { page: eventsMeta.page + 1, limit: 10 } });
+      setEvents(current => [...current, ...result.data]);
+      setEventsMeta(result.meta || eventsMeta);
+    } catch (error) { notify(err(error)); }
+    finally { setLoadingMoreEvents(false); }
+  }
 
   async function create(e) {
     e.preventDefault();
+    if (ticketQuantity > Number(form.capacity)) {
+      notify(`Ticket quantities total ${ticketQuantity}, which exceeds the event capacity of ${form.capacity}.`);
+      return;
+    }
     try {
       const methods=form.paymentInstructions?.methods||[];
       const created=await api.post('/events', {
@@ -782,12 +852,12 @@ function Dashboard() {
         paymentInstructions: { ...form.paymentInstructions, methods: methods.map(({qrFile,...method})=>method) },
         date: new Date(form.date),
         capacity: Number(form.capacity),
-        tickets: form.tickets.map(t => ({ ...t, price: Number(t.price), quantity: Number(t.quantity) })),
+        tickets: enabledTickets.map(t => ({ ...t, price: Number(t.price), quantity: Number(t.quantity), maxPerOrder: Number(t.maxPerOrder) })),
       });
       let qrUploadIssue=false;try{await Promise.all(methods.map(async(method,index)=>{if(!method.qrFile)return;const upload=new FormData();upload.append('qrImage',method.qrFile);upload.append('methodIndex',String(index));await api.post(`/events/${created.data._id}/payment-qr`,upload,{headers:{'Content-Type':'multipart/form-data'}})}))}catch{qrUploadIssue=true}
       notify(qrUploadIssue?'Event created, but a payment QR failed to upload. Add it from Edit event.':'Event created. Add details and publish when ready.');
       setModal(false);
-      api.get('/events/mine').then(x => setEvents(x.data));
+      api.get('/events/mine', { params: { page: 1, limit: 10 } }).then(x => { setEvents(x.data); setEventsMeta(x.meta || { total: x.data.length, page: 1, totalPages: 1, hasNext: false }); });
       api.get('/organizer/dashboard').then(x => setStats(x.data));
     } catch (e) {
       notify(err(e));
@@ -816,24 +886,27 @@ function Dashboard() {
         <Stat icon={<Clock3 />} label="Coming up" value={stats.upcoming || 0} note="Events on the calendar" />
       </div>
 
+      {adminNotices.length > 0 && <div className="admin-notification-list" aria-label="Event moderation notifications">{adminNotices.map(item => <article key={item._id} className={item.type === 'event_removed' ? 'removed' : 'restored'}><div><b>{item.type === 'event_removed' ? 'Event removed by admin' : 'Event restored by admin'} · {item.eventTitle}</b><span>{item.reason || (item.type === 'event_removed' ? 'This event is hidden from buyers and is read-only.' : 'This event is active again.')}</span></div>{item.event && <Link to={`/manage/${item.event}`}>View event <ArrowRight size={14}/></Link>}</article>)}</div>}
+
       <div className="dashboard-section-title">
         <div>
           <h2>Your events</h2>
           <p>Manage your lineup and see how each event is doing.</p>
         </div>
-        <span className="pill">{events.length} total</span>
+        <span className="pill">{eventsMeta.total} total</span>
       </div>
 
       {events.length ? (
         <div className="manage-list">
           {events.map((e, i) => (
-            <Link className="manage-row" to={`/manage/${e._id}`} key={e._id}>
+            <Link className={`manage-row${e.moderation?.status === 'removed' ? ' moderation-removed' : ''}`} to={`/manage/${e._id}`} key={e._id}>
               <img src={e.image || `https://images.unsplash.com/${photos[i % photos.length]}?auto=format&fit=crop&w=160&q=70`} />
               <div className="manage-event">
                 <b>{e.title}</b>
                 <span><CalendarDays size={14} />{date(e.date)} <i> | </i> <MapPin size={14} />{e.venue}</span>
+                {e.moderation?.status === 'removed' && <small className="removed-event-reason">Reason: {e.moderation.reason}</small>}
               </div>
-              <span className={`status ${e.status.toLowerCase()}`}>{e.status}</span>
+              {e.moderation?.status === 'removed' ? <span className="moderation-badge removed">Removed by admin</span> : <span className={`status ${e.status.toLowerCase()}`}>{e.status}</span>}
               <span className="manage-sales">{e.tickets?.reduce((n, t) => n + t.sold, 0) || 0} tickets sold</span>
               <ArrowUpRight size={17} />
             </Link>
@@ -849,61 +922,42 @@ function Dashboard() {
           </button>
         </div>
       )}
+      {eventsMeta.hasNext && <div className="load-more-events"><button className="button button-light" onClick={loadMoreOrganizerEvents} disabled={loadingMoreEvents}>{loadingMoreEvents ? 'Loading events…' : 'Load more events'}</button></div>}
 
       {modal && (
-        <div className="modal-backdrop" onClick={() => setModal(false)}>
-          <form className="create-modal" onSubmit={create} onClick={e => e.stopPropagation()}>
+        <div className="modal-backdrop create-event-backdrop" onClick={() => setModal(false)}>
+          <form className="create-modal create-event-modal" onSubmit={create} onClick={e => e.stopPropagation()}>
             <button className="modal-close" type="button" onClick={() => setModal(false)}><X /></button>
-            <div className="eyebrow muted">THE FIRST STEP</div>
-            <h2>Start something good.</h2>
-            <p>Tell us the basics. You can polish the details and ticket types later.</p>
-            <label>
-              Event name
-              <input required value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Sunday Sessions" />
-            </label>
-            <EventPhotoPicker images={form.images || []} onChange={images => setForm(current => ({ ...current, images, image: images[0] || '' }))} />
-            <label>Poster theme<select value={form.theme||''} onChange={e=>setForm({...form,theme:e.target.value})}><option value="">Choose automatically</option>{POSTER_THEMES.map(t=><option value={t.id} key={t.id}>{t.label}</option>)}</select></label>
-            <div className="form-two"><label>Offer label (optional)<input value={form.discount?.label||''} onChange={e=>setForm({...form,discount:{...form.discount,label:e.target.value}})} placeholder="Early bird"/></label><label>Discount percent<input type="number" min="1" max="90" value={form.discount?.percent||''} onChange={e=>setForm({...form,discount:{...form.discount,percent:e.target.value}})} placeholder="20"/></label></div><label>Offer ends (optional)<input type="date" value={form.discount?.endsAt||""} onChange={e=>setForm({...form,discount:{...form.discount,endsAt:e.target.value}})}/></label>
-            <div className="form-two">
-              <label>
-                Category
-                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                  {['Music', 'Concert', 'Seminar', 'Conference', 'Workshop', 'Sports', 'Festival', 'Educational', 'Other'].map(x => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Date
-                <input required type="date" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />
-              </label>
+            <header className="create-event-heading"><div className="eyebrow muted">EVENT SETUP</div><h2>Create an event</h2><p>Add the key details, photos, and checkout information.</p></header>
+            <div className="create-event-grid">
+              <div className="create-event-column">
+                <label>Event name<input required value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Sunday Sessions" /></label>
+                <div className="create-event-pair"><label>Category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{['Music', 'Concert', 'Seminar', 'Conference', 'Workshop', 'Sports', 'Festival', 'Educational', 'Other'].map(x => <option key={x}>{x}</option>)}</select></label><label>Date<input required type="date" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} /></label></div>
+                <div className="create-event-pair"><label>Venue<input required value={form.venue || ''} onChange={e => setForm({ ...form, venue: e.target.value })} placeholder="Venue name" /></label><label>Capacity<input required type="number" min="1" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></label></div>
+                <div className="create-event-pair"><label>Start time<input type="time" value={form.startTime || ''} onChange={e => setForm({ ...form, startTime: e.target.value })} /></label><label>End time<input type="time" value={form.endTime || ''} onChange={e => setForm({ ...form, endTime: e.target.value })} /></label></div>
+                <label className="create-event-description">Description<textarea required rows="3" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What makes this one special?" /></label>
+              </div>
+              <div className="create-event-column create-event-media-column">
+                <EventPhotoPicker images={form.images || []} onChange={images => setForm(current => ({ ...current, images, image: images[0] || '' }))} />
+                <label>Poster theme<select value={form.theme||''} onChange={e=>setForm({...form,theme:e.target.value})}><option value="">Choose automatically</option>{POSTER_THEMES.map(t=><option value={t.id} key={t.id}>{t.label}</option>)}</select></label>
+                <div className="create-event-pair"><label>Offer label (optional)<input value={form.discount?.label||''} onChange={e=>setForm({...form,discount:{...form.discount,label:e.target.value}})} placeholder="Early bird"/></label><label>Discount percent<input type="number" min="1" max="90" value={form.discount?.percent||''} onChange={e=>setForm({...form,discount:{...form.discount,percent:e.target.value}})} placeholder="20"/></label></div>
+                <label>Offer ends (optional)<input type="date" value={form.discount?.endsAt||""} onChange={e=>setForm({...form,discount:{...form.discount,endsAt:e.target.value}})}/></label>
+                <section className="create-ticket-types" aria-label="Ticket types and quantities">
+                  <div className="create-ticket-heading"><div><b>Ticket types</b><small>Set prices and ticket quantities. Their total must fit event capacity.</small></div><span>{ticketQuantity} / {Number(form.capacity) || 0}</span></div>
+                  {enabledTickets.map(ticket => <div className="create-ticket-row" key={ticket.name}>
+                    <b>{ticket.name}</b>
+                    <label>Price (₱)<input required type="number" min="0" step="0.01" value={ticket.price} onChange={e => setForm(current => ({ ...current, tickets: current.tickets.map(item => item.name === ticket.name ? { ...item, price: e.target.value } : item) }))} /></label>
+                    <label>Quantity<input required type="number" min="1" step="1" value={ticket.quantity} onChange={e => setForm(current => ({ ...current, tickets: current.tickets.map(item => item.name === ticket.name ? { ...item, quantity: e.target.value } : item) }))} /></label>
+                    <label>Max/order<input required type="number" min="1" step="1" value={ticket.maxPerOrder} onChange={e => setForm(current => ({ ...current, tickets: current.tickets.map(item => item.name === ticket.name ? { ...item, maxPerOrder: e.target.value } : item) }))} /></label>
+                  </div>)}
+                  <label className="create-vip-toggle"><input type="checkbox" checked={form.vipEnabled} onChange={e => setForm(current => ({ ...current, vipEnabled: e.target.checked }))} /> Offer VIP tickets</label>
+                  {enabledTickets.some(ticket => Number(ticket.maxPerOrder) > Number(ticket.quantity)) && <small className="create-ticket-warning">Max per order cannot be greater than that ticket type's quantity.</small>}
+                  {ticketQuantity > Number(form.capacity) && <small className="create-ticket-warning">Ticket quantities exceed event capacity. Reduce a ticket quantity or increase capacity.</small>}
+                </section>
+              </div>
+              <div className="create-event-column create-event-payment-column"><PaymentInstructionsEditor value={form.paymentInstructions} onChange={paymentInstructions=>setForm(current=>({...current,paymentInstructions}))}/></div>
             </div>
-            <div className="form-two">
-              <label>
-                Venue
-                <input required value={form.venue || ''} onChange={e => setForm({ ...form, venue: e.target.value })} placeholder="Venue name" />
-              </label>
-              <label>
-                Capacity
-                <input required type="number" min="1" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} />
-              </label>
-            </div>
-            <label>
-              Description
-              <textarea required rows="3" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What makes this one special?" />
-            </label>
-            <PaymentInstructionsEditor value={form.paymentInstructions} onChange={paymentInstructions=>setForm(current=>({...current,paymentInstructions}))}/>
-            <div className="form-two">
-              <label>
-                Start time
-                <input type="time" value={form.startTime || ''} onChange={e => setForm({ ...form, startTime: e.target.value })} />
-              </label>
-              <label>
-                End time
-                <input type="time" value={form.endTime || ''} onChange={e => setForm({ ...form, endTime: e.target.value })} />
-              </label>
-            </div>
-            <button className="button button-dark auth-submit">Create draft <ArrowRight size={16} /></button>
+            <footer className="create-event-actions"><span>Event will be saved as a draft. You can publish it from event management.</span><button className="button button-dark">Create draft <ArrowRight size={16} /></button></footer>
           </form>
         </div>
       )}
@@ -1030,6 +1084,7 @@ function CheckoutPage() {
   async function submit(e){e.preventDefault();if(!receipt){notify('Please upload a payment receipt image.');return;}setBusy(true);try{const data=new FormData();data.append('receipt',receipt);data.append('method',method);data.append('referenceNumber',referenceNumber);const result=await api.post(`/orders/${id}/payment`,data,{headers:{'Content-Type':'multipart/form-data'}});setOrder(result.data);notify('Your payment is under review. The host will confirm it soon.');nav('/orders');}catch(error){notify(err(error));}finally{setBusy(false)}}
   if(order.status==='Paid')return <section className="dashboard section-wrap"><div className="payment-state success"><Check/><h1>Payment confirmed</h1><p>Your tickets are ready in My Tickets.</p><Link className="button button-dark" to="/tickets">View my tickets <ArrowRight size={16}/></Link></div></section>;
   if(['Expired','Cancelled'].includes(order.status))return <section className="dashboard section-wrap"><div className="payment-state"><h1>Order {order.status.toLowerCase()}</h1><p>This reservation is no longer active. Choose the event again to place a new order.</p><Link className="button button-dark" to="/">Browse events</Link></div></section>;
+  if(order.event?.moderation?.status==='removed')return <section className="dashboard section-wrap"><div className="payment-state pending"><ShieldCheck/><h1>Event no longer available</h1><p>This event was removed by the administrator. Your order remains saved for support and refund follow-up.</p>{order.event.moderation.reason&&<div className="client-event-removed"><b>Removal reason</b><span>{order.event.moderation.reason}</span></div>}<Link to="/orders" className="button button-light">View my orders</Link></div></section>;
   if(order.status==='Pending Verification')return <section className="dashboard section-wrap"><div className="payment-state pending"><Clock3/><h1>Payment under review</h1><p>Your payment is under review. The host will confirm it soon.</p><Link to="/orders" className="button button-light">View my orders</Link></div></section>;
   const methodList=instructions.methods?.length?instructions.methods:[{type:'Other',accountName:'',accountNumber:''}];
   return <section className="dashboard section-wrap checkout-page"><Link className="back-link" to="/orders"><ArrowLeft size={16}/> My orders</Link><div className="checkout-layout"><main className="panel checkout-main"><span className="eyebrow muted">COMPLETE YOUR ORDER</span><h1>Submit payment</h1><p className="page-subtitle">Pay the event host, then upload your receipt for review.</p><div className="checkout-summary"><img src={order.event?.image||`https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=180&q=70`} alt=""/><div><b>{order.event?.title||'Event'}</b><small>{order.items?.map(x=>`${x.name} × ${x.quantity}`).join(', ')}</small></div><strong>{money(order.total)}</strong></div>
@@ -1042,8 +1097,8 @@ function MyOrders() {
   const { user, notify } = useAuth(), nav=useNavigate();
   const [orders,setOrders]=useState([]),[selected,setSelected]=useState(null);
   useEffect(()=>{if(!user){nav('/login');return}let active=true;const refresh=(initial=false)=>api.get('/orders/my-orders').then(x=>{if(active){setOrders(x.data);setSelected(current=>current?x.data.find(order=>order._id===current._id)||current:null)}}).catch(e=>{if(active&&initial)notify(err(e))});refresh(true);const timer=setInterval(()=>{if(document.visibilityState==='visible')refresh()},10000);return()=>{active=false;clearInterval(timer)}},[user]);
-  return <section className="dashboard section-wrap"><div className="eyebrow muted">YOUR EVENT TRAIL</div><h1>My orders</h1><p className="page-subtitle">Payment status and tickets for your event orders.</p>{orders.length?<div className="manage-list">{orders.map(o=><button type="button" className="manage-row order-row" key={o._id} onClick={()=>setSelected(o)}><img src={o.event?.image||`https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=160&q=70`} alt=""/><div className="manage-event"><b>{o.event?.title||'Event'}</b><span><CalendarDays size={14}/>{date(o.event?.date)} <i> | </i>{o.items?.reduce((n,x)=>n+x.quantity,0)} ticket(s)</span></div><span className={`order-status status-${o.status.toLowerCase().replaceAll(' ','-')}`}>{o.status==='Pending'?'Pending Payment':o.status}</span><b>{money(o.total)}</b><ArrowRight size={16}/></button>)}</div>:<div className="empty-state"><span className="empty-icon"><Ticket/></span><h3>Your next good plan is out there</h3><p>Find an event that feels like you.</p><Link className="button button-dark" to="/">Explore events <ArrowRight size={15}/></Link></div>}
-    {selected&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><section className="create-modal pro-modal order-detail-modal"><button className="modal-close" onClick={()=>setSelected(null)} aria-label="Close order details"><X/></button><span className="eyebrow muted">ORDER DETAILS</span><h2>{selected.event?.title||'Event order'}</h2><span className={`order-status status-${selected.status.toLowerCase().replaceAll(' ','-')}`}>{selected.status==='Pending'?'Pending Payment':selected.status}</span><div className="order-detail-summary">{selected.items?.map((item,i)=><p key={i}>{item.name} × {item.quantity} <b>{money(item.unitPrice*item.quantity)}</b></p>)}<p>Service fee <b>{money(selected.fees)}</b></p><p className="order-total">Total <b>{money(selected.total)}</b></p></div>{selected.payment?.referenceNumber&&<p><b>Reference:</b> {selected.payment.referenceNumber}</p>}{selected.payment?.receiptUrl&&<a href={selected.payment.receiptUrl} target="_blank" rel="noreferrer"><img className="order-receipt-thumb" src={selected.payment.receiptUrl} alt="Submitted payment receipt"/></a>}{selected.payment?.rejectionReason&&<div className="rejection-note"><b>Host feedback</b><p>{selected.payment.rejectionReason}</p></div>}<div className="order-timeline"><h3>Status history</h3>{selected.statusHistory?.map((h,i)=><div key={i}><span className={`timeline-dot status-${h.status.toLowerCase().replaceAll(' ','-')}`}/><span><b>{h.status}</b><small>{new Date(h.at).toLocaleString('en-PH')}{h.note?` · ${h.note}`:''}</small></span></div>)}</div>{['Pending Payment','Rejected','Pending'].includes(selected.status)&&<Link className="button button-dark" to={`/checkout/${selected._id}`} onClick={()=>setSelected(null)}>{selected.status==='Rejected'?'Re-upload receipt':'Upload receipt'} <ArrowRight size={16}/></Link>}{selected.status==='Pending Verification'&&<p className="payment-review-note">Your payment is under review. The host will confirm it soon.</p>}{selected.status==='Paid'&&<Link className="button button-dark" to="/tickets" onClick={()=>setSelected(null)}>View issued tickets <Ticket size={16}/></Link>}</section></div>}
+  return <section className="dashboard section-wrap"><div className="eyebrow muted">YOUR EVENT TRAIL</div><h1>My orders</h1><p className="page-subtitle">Payment status and tickets for your event orders.</p>{orders.length?<div className="manage-list">{orders.map(o=><button type="button" className="manage-row order-row" key={o._id} onClick={()=>setSelected(o)}><img src={o.event?.image||`https://images.unsplash.com/${photos[0]}?auto=format&fit=crop&w=160&q=70`} alt=""/><div className="manage-event"><b>{o.event?.title||'Event'}</b><span><CalendarDays size={14}/>{date(o.event?.date)} <i> | </i>{o.items?.reduce((n,x)=>n+x.quantity,0)} ticket(s)</span>{o.event?.moderation?.status==='removed'&&<small className="removed-event-reason">This event was removed by the administrator. {o.event.moderation.reason}</small>}</div><span className={`order-status status-${o.status.toLowerCase().replaceAll(' ','-')}`}>{o.status==='Pending'?'Pending Payment':o.status}</span><b>{money(o.total)}</b><ArrowRight size={16}/></button>)}</div>:<div className="empty-state"><span className="empty-icon"><Ticket/></span><h3>Your next good plan is out there</h3><p>Find an event that feels like you.</p><Link className="button button-dark" to="/">Explore events <ArrowRight size={15}/></Link></div>}
+    {selected&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><section className="create-modal pro-modal order-detail-modal"><button className="modal-close" onClick={()=>setSelected(null)} aria-label="Close order details"><X/></button><header className="order-detail-header"><span className="eyebrow muted">ORDER DETAILS</span><h2>{selected.event?.title||'Event order'}</h2><span className={`order-status status-${selected.status.toLowerCase().replaceAll(' ','-')}`}>{selected.status==='Pending'?'Pending Payment':selected.status}</span>{selected.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{selected.event.cancellationReason||'The organizer cancelled this event.'}</span></div>}{selected.status==='Refund Required'&&<div className="event-cancelled-notice"><b>Refund follow-up needed</b><span>The event was cancelled after your payment. Contact the organizer about your refund.</span></div>}{selected.event?.moderation?.status==='removed'&&<div className="client-event-removed"><b>This event was removed by the administrator.</b><span>{selected.event.moderation.reason||'Contact Eventify support for information about your order.'}</span></div>}</header><div className="order-detail-layout"><div className="order-detail-main"><div className="order-detail-summary">{selected.items?.map((item,i)=><p key={i}>{item.name} x {item.quantity} <b>{money(item.unitPrice*item.quantity)}</b></p>)}<p>Service fee <b>{money(selected.fees)}</b></p><p className="order-total">Total <b>{money(selected.total)}</b></p></div>{selected.payment?.referenceNumber&&<p className="order-reference"><b>Reference:</b> {selected.payment.referenceNumber}</p>}{selected.payment?.receiptUrl&&<a className="order-receipt-link" href={selected.payment.receiptUrl} target="_blank" rel="noreferrer"><img className="order-receipt-thumb" src={selected.payment.receiptUrl} alt="Submitted payment receipt"/></a>}{selected.payment?.rejectionReason&&<div className="rejection-note"><b>Host feedback</b><p>{selected.payment.rejectionReason}</p></div>}{['Pending Payment','Rejected','Pending'].includes(selected.status)&&<Link className="button button-dark" to={`/checkout/${selected._id}`} onClick={()=>setSelected(null)}>{selected.status==='Rejected'?'Re-upload receipt':'Upload receipt'} <ArrowRight size={16}/></Link>}{selected.status==='Pending Verification'&&<p className="payment-review-note">Your payment is under review. The host will confirm it soon.</p>}{selected.status==='Paid'&&<Link className="button button-dark" to="/tickets" onClick={()=>setSelected(null)}>View issued tickets <Ticket size={16}/></Link>}</div><div className="order-timeline"><h3>Status history</h3>{selected.statusHistory?.map((h,i)=><div key={i}><span className={`timeline-dot status-${h.status.toLowerCase().replaceAll(' ','-')}`}/><span><b>{h.status}</b><small>{new Date(h.at).toLocaleString('en-PH')}{h.note?` - ${h.note}`:''}</small></span></div>)}</div></div></section></div>}
   </section>;
 }
 
@@ -1083,16 +1138,18 @@ function MyTickets() {
             <article className="ticket-card" key={t._id}>
               <div className="ticket-card-image">
                 <img src={t.event?.image || `https://images.unsplash.com/${photos[1]}?auto=format&fit=crop&w=650&q=80`} alt={`${t.event?.title||'Event'} ticket`} />
-                <span className={`client-ticket-status ${t.status==='Checked In'?'checked-in':t.status==='Cancelled'?'cancelled':'ready'}`}>{t.status==='Checked In'?'✓ Checked in':t.status==='Cancelled'?'Cancelled':'Ready to use'}</span>
+                <span className={`client-ticket-status ${t.status==='Event Removed'?'cancelled':t.status==='Checked In'?'checked-in':t.status==='Cancelled'?'cancelled':'ready'}`}>{t.status==='Event Removed'?'Event removed':t.status==='Checked In'?'✓ Checked in':t.status==='Cancelled'?'Cancelled':'Ready to use'}</span>
               </div>
               <div className="ticket-card-body">
                 <span className="eyebrow muted">{t.ticketType}</span>
                 <h3>{t.event?.title}</h3>
                 <p><CalendarDays size={14} />{date(t.event?.date)}</p>
                 <p><MapPin size={14} />{t.event?.venue}</p>
+                {t.status==='Event Removed'&&<div className="client-event-removed"><b>This event was removed by the administrator.</b><span>{t.event?.moderation?.reason||'Contact Eventify support for information about your order.'}</span></div>}
+                {t.event?.status==='Cancelled'&&<div className="event-cancelled-notice"><b>Event cancelled</b><span>{t.event.cancellationReason||'The organizer cancelled this event.'}{t.order?.status==='Refund Required'?' Contact the organizer about your refund.':''}</span></div>}
                 <div className="ticket-code">{t.code}</div>
                 <button className="button button-light" onClick={() => show(t)} disabled={t.status!=='Valid'}>
-                  {t.status==='Checked In'?<Check size={16}/>:<QrCode size={16} />} {t.status==='Checked In'?'Already checked in':t.status==='Cancelled'?'Ticket cancelled':'View QR ticket'}
+                  {t.status==='Checked In'?<Check size={16}/>:<QrCode size={16} />} {t.status==='Event Removed'?'Ticket disabled':t.status==='Checked In'?'Already checked in':t.status==='Cancelled'?'Ticket cancelled':'View QR ticket'}
                 </button>
               </div>
             </article>

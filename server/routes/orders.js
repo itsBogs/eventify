@@ -9,6 +9,7 @@ import { auth, roles } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/imageUpload.js';
 import { uploadImage, deleteImage } from '../services/cloudinary.js';
 import { expireOverdueOrders, ORDER_EXPIRY_HOURS } from '../services/orderExpiry.js';
+import { isEventInPast } from '../services/eventRules.js';
 
 const r = Router();
 const PAYMENT_METHODS = ['GCash', 'Maya', 'Bank Transfer', 'Other'];
@@ -41,15 +42,16 @@ r.post('/', auth, roles('attendee'), body('eventId').isMongoId(), body('ticketTy
   const quantity = Number(rawQuantity);
   let event, ticket, reserved = false;
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    event = await Event.findOne({ _id: eventId, status: 'Published' });
+    event = await Event.findOne({ _id: eventId, status: 'Published', $or: [{ 'moderation.status': 'active' }, { 'moderation.status': { $exists: false } }] });
     if (!event) return res.status(409).json({ success: false, message: 'Event is unavailable' });
+    if (isEventInPast(event)) return res.status(409).json({ success: false, message: 'This event has already started and tickets are no longer available.' });
     ticket = event.tickets.id(ticketTypeId);
     const now = new Date();
     const sold = event.tickets.reduce((sum, item) => sum + Number(item.sold || 0), 0);
     if (!ticket || !ticket.active || quantity > ticket.maxPerOrder || ticket.sold + quantity > ticket.quantity || (ticket.salesStart && now < ticket.salesStart) || (ticket.salesEnd && now > ticket.salesEnd) || sold + quantity > event.capacity) {
       return res.status(409).json({ success: false, message: 'Tickets are unavailable or the requested quantity exceeds event capacity' });
     }
-    const updated = await Event.findOneAndUpdate({ _id: event.id, status: 'Published', __v: event.__v, 'tickets._id': ticketTypeId }, { $inc: { 'tickets.$.sold': quantity, __v: 1 } }, { new: true });
+    const updated = await Event.findOneAndUpdate({ _id: event.id, status: 'Published', __v: event.__v, 'tickets._id': ticketTypeId, $or: [{ 'moderation.status': 'active' }, { 'moderation.status': { $exists: false } }] }, { $inc: { 'tickets.$.sold': quantity, __v: 1 } }, { new: true });
     if (updated) { event = updated; ticket = event.tickets.id(ticketTypeId); reserved = true; break; }
   }
   if (!reserved) return res.status(409).json({ success: false, message: 'Ticket inventory changed. Please try again.' });
@@ -66,6 +68,23 @@ r.post('/', auth, roles('attendee'), body('eventId').isMongoId(), body('ticketTy
       expiresAt: new Date(Date.now() + ORDER_EXPIRY_HOURS * 60 * 60 * 1000),
       statusHistory: [{ status, at: new Date(), by: req.user.id, note: subtotal === 0 ? 'Free ticket confirmed.' : 'Ticket inventory reserved.' }],
     });
+    const latestEvent = await Event.findById(event.id).select('status cancellationReason');
+    if (latestEvent?.status === 'Cancelled') {
+      if (order.status === 'Paid') {
+        order.status = 'Refund Required';
+        order.statusHistory.push({ status: 'Refund Required', at: new Date(), note: `Event cancelled: ${latestEvent.cancellationReason || 'Event cancelled by organizer.'}` });
+        await order.save();
+      } else {
+        const cancelled = await Order.findOneAndUpdate({ _id: order.id, status: { $in: ['Pending Payment','Pending Verification','Pending','Rejected'] }, reservationReleased: { $ne: true } }, {
+          $set: { status: 'Cancelled', reservationReleased: true },
+          $push: { statusHistory: { status: 'Cancelled', at: new Date(), note: `Event cancelled: ${latestEvent.cancellationReason || 'Event cancelled by organizer.'}` } },
+        }, { new: true });
+        if (cancelled) await Event.updateOne({ _id: event.id, 'tickets._id': ticketTypeId, 'tickets.$.sold': { $gte: quantity } }, { $inc: { 'tickets.$.sold': -quantity, __v: 1 } });
+        if (subtotal === 0) order.status = 'Refund Required';
+      }
+      if (order.status === 'Refund Required') return send(res, order, 'The event was cancelled while the order was processing. Contact the organizer about your refund.', 409);
+      return res.status(409).json({ success: false, message: 'The event was cancelled while the order was processing. The reservation has been released.' });
+    }
     if (status === 'Paid') await makeTickets(order);
     await order.populate('event', 'title date venue image paymentInstructions organizer');
     return send(res, order, status === 'Paid' ? 'Free tickets confirmed.' : 'Order created. Submit payment before it expires.', 201);
@@ -77,7 +96,7 @@ r.post('/', auth, roles('attendee'), body('eventId').isMongoId(), body('ticketTy
 
 r.get('/my-orders', auth, roles('attendee'), async (req, res) => {
   await expireOverdueOrders();
-  const orders = await Order.find({ user: req.user.id }).populate('event', 'title date venue image paymentInstructions').sort({ createdAt: -1 });
+  const orders = await Order.find({ user: req.user.id }).populate('event', 'title date venue image paymentInstructions moderation status cancellationReason').sort({ createdAt: -1 });
   send(res, orders);
 });
 
@@ -101,7 +120,7 @@ r.get('/host', auth, roles('organizer'), async (req, res) => {
 
 r.get('/:id', auth, async (req, res) => {
   await expireOverdueOrders();
-  const order = await Order.findById(req.params.id).populate('event', 'title date venue image paymentInstructions organizer').populate('user', 'name email').populate('statusHistory.by', 'name');
+  const order = await Order.findById(req.params.id).populate('event', 'title date venue image paymentInstructions organizer moderation').populate('user', 'name email').populate('statusHistory.by', 'name');
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   if (String(order.user?._id || order.user) !== String(req.user.id) && !(req.user.role === 'organizer' && await hostOwnsOrder(order, req.user))) return res.status(403).json({ success: false, message: 'Not your order' });
   send(res, order);
@@ -110,6 +129,8 @@ r.get('/:id', auth, async (req, res) => {
 r.post('/:id/payment', auth, roles('attendee'), imageUpload.single('receipt'), body('method').isIn(PAYMENT_METHODS), body('referenceNumber').trim().notEmpty().isLength({ max: 100 }), check, async (req, res) => {
   const order = await Order.findOne({ _id: req.params.id, user: req.user.id });
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+  const event = await Event.findById(order.event).select('moderation');
+  if (event?.moderation?.status === 'removed') return res.status(409).json({ success: false, message: `This event was removed by the administrator${event.moderation.reason ? `: ${event.moderation.reason}` : '.'}` });
   if (!req.file) return res.status(422).json({ success: false, message: 'Upload your payment receipt image.' });
   if (!['Pending Payment', 'Rejected', 'Pending'].includes(order.status)) return res.status(409).json({ success: false, message: 'This order cannot accept another receipt.' });
   if (order.expiresAt && order.expiresAt <= new Date()) {
@@ -128,24 +149,36 @@ r.post('/:id/payment', auth, roles('attendee'), imageUpload.single('receipt'), b
   send(res, order, 'Your payment is under review. The host will confirm it soon.');
 });
 
-r.patch('/:id/approve', auth, roles('organizer', 'admin'), async (req, res) => {
+r.patch('/:id/approve', auth, roles('organizer'), async (req, res) => {
   await expireOverdueOrders();
   const order = await Order.findById(req.params.id);
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   if (!(await hostOwnsOrder(order, req.user))) return res.status(403).json({ success: false, message: 'This event belongs to another organizer.' });
+  const event = await Event.findById(order.event).select('moderation');
+  if (event?.moderation?.status === 'removed') return res.status(423).json({ success: false, message: 'This event was removed by an administrator. Its orders are read-only.' });
   if (order.status === 'Paid') return send(res, order, 'Order was already approved.');
   if (order.status !== 'Pending Verification') return res.status(409).json({ success: false, message: 'Only orders with submitted receipts can be approved.' });
   const approved = await Order.findOneAndUpdate({ _id: order._id, status: 'Pending Verification' }, { $set: { status: 'Paid', 'payment.reviewedAt': new Date(), 'payment.reviewedBy': req.user.id }, $push: { statusHistory: { status: 'Paid', at: new Date(), by: req.user.id, note: 'Payment approved by event host.' } } }, { new: true });
   if (!approved) return res.status(409).json({ success: false, message: 'Order status changed. Refresh and try again.' });
   await makeTickets(approved);
-  send(res, approved, 'Payment approved and tickets issued.');
+  const latestEvent = await Event.findById(approved.event).select('moderation status cancellationReason');
+  let responseOrder = approved, responseMessage = 'Payment approved and tickets issued.';
+  if (latestEvent?.moderation?.status === 'removed') await Ticket.updateMany({ order: approved.id, status: 'Valid' }, { $set: { status: 'Event Removed', statusBeforeRemoval: 'Valid' } });
+  else if (latestEvent?.status === 'Cancelled') {
+    responseOrder = await Order.findOneAndUpdate({ _id: approved.id, status: 'Paid' }, { $set: { status: 'Refund Required' }, $push: { statusHistory: { status: 'Refund Required', at: new Date(), by: req.user.id, note: `Event cancelled: ${latestEvent.cancellationReason || 'Event cancelled by organizer.'}` } } }, { new: true }) || approved;
+    await Ticket.updateMany({ order: approved.id, status: { $in: ['Valid','Checked In'] } }, { $set: { status: 'Cancelled' } });
+    responseMessage = 'The event was cancelled during review. The order is marked for refund and its tickets are invalid.';
+  }
+  send(res, responseOrder, responseMessage);
 });
 
-r.patch('/:id/reject', auth, roles('organizer', 'admin'), body('rejectionReason').trim().notEmpty().isLength({ max: 500 }), check, async (req, res) => {
+r.patch('/:id/reject', auth, roles('organizer'), body('rejectionReason').trim().notEmpty().isLength({ max: 500 }), check, async (req, res) => {
   await expireOverdueOrders();
   const order = await Order.findById(req.params.id);
   if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
   if (!(await hostOwnsOrder(order, req.user))) return res.status(403).json({ success: false, message: 'This event belongs to another organizer.' });
+  const event = await Event.findById(order.event).select('moderation');
+  if (event?.moderation?.status === 'removed') return res.status(423).json({ success: false, message: 'This event was removed by an administrator. Its orders are read-only.' });
   if (order.status !== 'Pending Verification') return res.status(409).json({ success: false, message: 'Only orders with submitted receipts can be rejected.' });
   order.status = 'Rejected';
   order.payment.reviewedAt = new Date(); order.payment.reviewedBy = req.user.id; order.payment.rejectionReason = req.body.rejectionReason.trim();

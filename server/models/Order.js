@@ -34,7 +34,7 @@ const orderSchema = new mongoose.Schema({
   fees: Number,
   total: Number,
   // `Pending` remains accepted so older documents remain readable.
-  status: { type: String, enum: ['Pending Payment', 'Pending Verification', 'Paid', 'Rejected', 'Expired', 'Cancelled', 'Pending', 'Refunded'], default: 'Pending Payment' },
+  status: { type: String, enum: ['Pending Payment', 'Pending Verification', 'Paid', 'Refund Required', 'Rejected', 'Expired', 'Cancelled', 'Pending', 'Refunded'], default: 'Pending Payment' },
   payment: { type: paymentSchema, default: () => ({}) },
   expiresAt: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
   statusHistory: { type: [historySchema], default: [] },
