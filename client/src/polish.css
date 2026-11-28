@@ -35,6 +35,10 @@ footer .footer-bottom { color: #aeb2bb; }
 .search-box:focus-within { border-color: var(--primary); box-shadow: var(--focus-ring); }
 .category:hover { border-color: var(--primary); color: var(--primary); }
 .empty-state, .event-card, .how-step, .cat-card { animation: polish-rise 420ms ease both; }
+.event-load-error { background: var(--surface); color: var(--text); border-color: var(--border); min-height: 245px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.event-load-error h2 { color: var(--text); margin: 0 0 8px; }
+.event-load-error p { color: var(--text-secondary); }
+.empty-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 @keyframes polish-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 @media (max-width: 620px) { .eventcon-home .discover .event-cover { aspect-ratio: 16 / 9; } .eventcon-home .stats-row-inner { gap: 14px; } }
@@ -1017,6 +1021,9 @@ footer {
 .event-cancelled-notice { margin: 14px 0; padding: 12px 14px; border: 1px solid rgba(255,82,111,.35); border-radius: 12px; background: rgba(255,55,96,.09); color: #ffd9df; }
 .event-cancelled-notice b,.event-cancelled-notice span { display: block; }
 .event-cancelled-notice span { margin-top: 4px; color: #e5bfc7; }
+.refund-complete-notice { margin: 12px 0; padding: 12px 14px; border: 1px solid rgba(72,211,151,.35); border-radius: 12px; background: rgba(31,150,102,.12); color: #b8f3d7; }
+.refund-complete-notice b, .refund-complete-notice span { display: block; }
+.refund-complete-notice span { margin-top: 4px; color: #c8d9d1; }
 .event-lifecycle-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .event-lifecycle-actions small { display: block; max-width: 680px; margin-top: 5px; line-height: 1.5; }
 .event-lifecycle-buttons { display: flex; flex: none; gap: 9px; }

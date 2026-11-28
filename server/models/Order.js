@@ -17,6 +17,9 @@ const paymentSchema = new mongoose.Schema({
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   rejectionReason: { type: String, default: '' },
   hostNote: { type: String, default: '' },
+  refundReference: { type: String, trim: true, default: '' },
+  refundedAt: Date,
+  refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { _id: false });
 
 const historySchema = new mongoose.Schema({

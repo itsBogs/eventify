@@ -129,11 +129,11 @@ r.get('/mine', auth, roles('organizer'), asyncRoute(async (req, res) => {
 r.get('/:id/lifecycle', auth, roles('organizer'), asyncRoute(async (req, res) => {
   const event = await ownedEvent(req.params.id, req.user.id);
   if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
-  const statuses = ['Pending Payment', 'Pending Verification', 'Paid', 'Refund Required', 'Rejected', 'Pending'];
+  const statuses = ['Pending Payment', 'Pending Verification', 'Paid', 'Refund Required', 'Refunded', 'Rejected', 'Pending'];
   const counts = await Order.aggregate([{ $match: { event: event._id, status: { $in: statuses } } }, { $group: { _id: '$status', count: { $sum: 1 } } }]);
   const byStatus = Object.fromEntries(counts.map(item => [item._id, item.count]));
   const blockedOrders = (byStatus['Pending Payment'] || 0) + (byStatus['Pending Verification'] || 0) + (byStatus.Paid || 0) + (byStatus['Refund Required'] || 0) + (byStatus.Pending || 0);
-  send(res, { canDelete: blockedOrders === 0, blockedOrders, cancellationImpact: { pendingPayment: byStatus['Pending Payment'] || 0, pendingVerification: byStatus['Pending Verification'] || 0, paid: byStatus.Paid || 0, refundRequired: byStatus['Refund Required'] || 0, rejected: byStatus.Rejected || 0, legacyPending: byStatus.Pending || 0, total: statuses.reduce((sum, status) => sum + (byStatus[status] || 0), 0) } });
+  send(res, { canDelete: blockedOrders === 0, blockedOrders, cancellationImpact: { pendingPayment: byStatus['Pending Payment'] || 0, pendingVerification: byStatus['Pending Verification'] || 0, paid: byStatus.Paid || 0, refundRequired: byStatus['Refund Required'] || 0, refunded: byStatus.Refunded || 0, rejected: byStatus.Rejected || 0, legacyPending: byStatus.Pending || 0, total: statuses.reduce((sum, status) => sum + (byStatus[status] || 0), 0) } });
 }));
 
 const optionalEventValidators = [
@@ -238,7 +238,7 @@ r.delete('/:id', auth, roles('organizer'), asyncRoute(async (req, res) => {
   const active = await Order.find({ event: event.id, status: { $in: ['Pending Payment','Pending Verification','Paid','Refund Required','Pending'] } }).select('status').lean();
   if (active.length) return res.status(409).json({ success: false, message: 'This event cannot be deleted while it has active orders (' + [...new Set(active.map(order => order.status))].join(', ') + '). Cancel the event or wait until unpaid orders expire.' });
   const publicIds = (event.paymentInstructions?.methods || []).map(method => method.qrImagePublicId).filter(Boolean);
-  const inactiveOrders = await Order.find({ event: event.id, status: { $in: ['Expired','Cancelled','Rejected'] } }).select('payment.receiptPublicId').lean();
+  const inactiveOrders = await Order.find({ event: event.id, status: { $in: ['Expired','Cancelled','Rejected','Refunded'] } }).select('payment.receiptPublicId').lean();
   const receiptIds = inactiveOrders.map(order => order.payment?.receiptPublicId).filter(Boolean);
   try { await Promise.all([...publicIds, ...receiptIds].map(publicId => deleteImage(publicId))); }
   catch { return res.status(502).json({ success: false, message: 'Event images could not be removed from storage. The event was kept; please try again.' }); }

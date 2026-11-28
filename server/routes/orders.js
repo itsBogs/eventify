@@ -187,6 +187,21 @@ r.patch('/:id/reject', auth, roles('organizer'), body('rejectionReason').trim().
   send(res, order, 'Payment receipt rejected. The buyer may upload a new receipt.');
 });
 
+r.patch('/:id/refund', auth, roles('organizer'), body('refundReference').isString().trim().isLength({ min: 4, max: 120 }).withMessage('Enter the refund transaction reference (4 to 120 characters).'), check, async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+  if (!(await hostOwnsOrder(order, req.user))) return res.status(403).json({ success: false, message: 'This event belongs to another organizer.' });
+  const event = await Event.findById(order.event).select('status');
+  if (event?.status !== 'Cancelled') return res.status(409).json({ success: false, message: 'Cancel the event before recording a refund.' });
+  const reference = req.body.refundReference.trim();
+  const refunded = await Order.findOneAndUpdate({ _id: order._id, status: 'Refund Required' }, {
+    $set: { status: 'Refunded', 'payment.refundReference': reference, 'payment.refundedAt': new Date(), 'payment.refundedBy': req.user.id },
+    $push: { statusHistory: { status: 'Refunded', at: new Date(), by: req.user.id, note: `Organizer recorded refund reference ${reference}.` } },
+  }, { new: true });
+  if (!refunded) return res.status(409).json({ success: false, message: order.status === 'Refunded' ? 'This order is already marked as refunded.' : 'Only orders marked Refund Required can be marked refunded.' });
+  send(res, refunded, 'Refund recorded. The order is now eligible for event deletion.');
+});
+
 r.post('/:id/cancel', auth, roles('attendee'), async (req, res) => {
   await expireOverdueOrders();
   const order = await Order.findOne({ _id: req.params.id, user: req.user.id });
